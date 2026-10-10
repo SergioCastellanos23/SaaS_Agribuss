@@ -1,150 +1,181 @@
-import streamlit as st
+import datetime
 import pandas as pd
-from datetime import datetime, timedelta
+import streamlit as st
 
-# Configuración de la página (Modo Oscuro / Estética CrateCairn)
+# Configuración de la página
 st.set_page_config(
-    page_title="CrateCairn | Export Operations",
-    page_icon="📦",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    page_title="CrateCairn | Export Operations", page_icon="📦", layout="wide"
 )
 
-# Estilos CSS personalizados para simular la paleta oscura y dorada elegante
-st.markdown("""
+# Estilos visuales minimalistas oscuros (Estética CrateCairn)
+st.markdown(
+    """
     <style>
-    .main {
-        background-color: #0f0e0d;
-        color: #f4f1ea;
-    }
-    .stSidebar {
-        background-color: #171614;
-    }
-    h1, h2, h3 {
-        color: #f4f1ea !important;
-        font-family: serif;
-    }
-    .highlight {
-        color: #d4af37;
-    }
-    .metric-card {
-        background-color: #1a1917;
-        border: 1px solid #33312b;
-        padding: 20px;
-        border-radius: 8px;
-    }
+    .main { background-color: #121212; color: #E0E0E0; }
+    .stMetric { background-color: #1E1E1E; padding: 15px; border-radius: 8px; border: 1px solid #333; }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
-# Datos simulados iniciales (Mock Data para agronegocios y exportaciones)
-if 'inventory' not in st.session_state:
-    st.session_state.inventory = pd.DataFrame([
-        {"ID": "INV-001", "Producto": "Café Orgánico (Sacos)", "Origen": "Chiapas, MX", "Cantidad": 1200, "Estado": "En Almacén"},
-        {"ID": "INV-002", "Producto": "Aguacate Hass (Ton)", "Origen": "Michoacán, MX", "Cantidad": 45, "Estado": "Listo para Carga"},
-        {"ID": "INV-003", "Producto": "Mango Ataulfo (Ton)", "Origen": "Oaxaca, MX", "Cantidad": 30, "Estado": "En Revisión"}
-    ])
 
-if 'shipments' not in st.session_state:
-    st.session_state.shipments = pd.DataFrame([
-        {"Embarque": "SHP-101", "Destino": "Rotterdam, NL", "Producto": "Café Orgánico", "Progreso": "En Tránsito Marítimo", "ETA": "2026-10-25", "Estatus": "A tiempo"},
-        {"Embarque": "SHP-102", "Destino": "Los Angeles, US", "Producto": "Aguacate Hass", "Progreso": "Retrasado en Aduana", "ETA": "2026-10-14", "Estatus": "⚠️ Discrepancia"},
-        {"Embarque": "SHP-103", "Destino": "Madrid, ES", "Producto": "Mango Ataulfo", "Progreso": "Despacho Inicial", "ETA": "2026-10-18", "Estatus": "A tiempo"}
-    ])
+# Motor de categorización automática (Simula la lectura de APIs/Scraping de paqueterías)
+def categorizar_estatus_envio(texto_rastreo, fecha_estimada):
+  hoy = datetime.date.today()
+  texto = texto_rastreo.lower()
 
-# Barra lateral de navegación
-st.sidebar.markdown("<h2 class='highlight'>CrateCairn</h2>", unsafe_allow_html=True)
-st.sidebar.caption("A clearer daily view of export operations.")
-menu = st.sidebar.radio("Navegación", ["Panel General (Dashboard)", "Inventario en Origen", "Progreso de Embarques", "Reporte Diario de Acción"])
+  # 1. Detección de incidencias o aduana
+  if any(
+      palabra in texto
+      for palabra in [
+          "delay",
+          "held",
+          "customs",
+          "retención",
+          "excepción",
+          "exception",
+      ]
+  ):
+    return "🔴 ALERTA: Retenido / Aduana"
 
-if menu == "Panel General (Dashboard)":
-    st.markdown("# A clearer daily view of <span class='highlight'>export operations.</span>", unsafe_allow_html=True)
-    st.write("CrateCairn reúne el inventario, el progreso de los envíos y los plazos de entrega, señalando retrasos y discrepancias para que tu equipo los revise.")
-    
-    st.markdown("---")
-    
-    # Métricas principales
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="📦 Inventario en Origen", value=f"{len(st.session_state.inventory)} lotes activos", delta="Estable")
-    with col2:
-        st.metric(label="🚢 Embarques en Tránsito", value=f"{len(st.session_state.shipments)} rutas", delta="1 Alerta crítica", delta_color="inverse")
-    with col3:
-        st.metric(label="📋 Entregas Programadas", value="3 esta semana", delta="A tiempo")
-        
-    st.markdown("### ⚠️ Señales que requieren atención inmediata")
-    # Filtrar discrepancias
-    discrepancias = st.session_state.shipments[st.session_state.shipments["Estatus"].str.contains("Discrepancia|Retrasado", na=False)]
-    if not discrepancias.empty:
-        st.error("Se detectó una discrepancia en el embarque SHP-102 (Aduana de destino). Se recomienda revisión del equipo.")
-        st.dataframe(discrepancias, use_container_width=True)
-    else:
-        st.success("No hay retrasos críticos registrados en este momento.")
+  # 2. Detección de entrega completada
+  if any(palabra in texto for palabra in ["delivered", "entregado", "signed"]):
+    return "🟢 ENTREGADO: Finalizado"
 
-elif menu == "Inventario en Origen":
-    st.markdown("# <span class='highlight'>Inventario</span> en Origen", unsafe_allow_html=True)
-    st.write("Mantén a la vista el inventario junto con los envíos que respalda.")
-    
-    st.dataframe(st.session_state.inventory, use_container_width=True)
-    
-    with st.form("add_inventory"):
-        st.subheader("Registrar Nuevo Lote en Origen")
-        col1, col2 = st.columns(2)
-        with col1:
-            prod_name = st.text_input("Nombre del Producto / Cosecha")
-            origin_loc = st.text_input("Origen (Ciudad, Estado)")
-        with col2:
-            qty = st.number_input("Cantidad", min_value=1, value=10)
-            status = st.selectbox("Estado", ["En Almacén", "Listo para Carga", "En Revisión"])
-            
-        submitted = st.form_submit_button("Añadir al Inventario")
-        if submitted and prod_name:
-            nuevo_id = f"INV-00{len(st.session_state.inventory) + 1}"
-            nueva_fila = {"ID": nuevo_id, "Producto": prod_name, "Origen": origin_loc, "Cantidad": qty, "Estado": status}
-            st.session_state.inventory = pd.concat([st.session_state.inventory, pd.DataFrame([nueva_fila])], ignore_index=True)
-            st.success(f"¡Lote {nuevo_id} registrado exitosamente!")
-            st.rerun()
+  # 3. Detección de retraso por comparación de fechas (ETA vencido)
+  if hoy > fecha_estimada:
+    dias = (hoy - fecha_estimada).days
+    return f"🔴 ALERTA: Retrasado ({dias} día{'s' if dias > 1 else ''} tarde)"
 
-elif menu == "Progreso de Embarques":
-    st.markdown("# <span class='highlight'>Progreso</span> de Embarques", unsafe_allow_html=True)
-    st.write("Visualiza el movimiento y los tiempos estimados de entrega en una sola perspectiva operativa.")
-    
-    st.dataframe(st.session_state.shipments, use_container_width=True)
-    
-    with st.form("add_shipment"):
-        st.subheader("Registrar Nuevo Embarque")
-        col1, col2 = st.columns(2)
-        with col1:
-            shp_id = f"SHP-10{len(st.session_state.shipments) + 1}"
-            dest = st.text_input("Destino (Ciudad, País)")
-            prod = st.text_input("Producto Transportado")
-        with col2:
-            prog = st.text_input("Progreso Actual (ej. Puerto de salida)")
-            eta_date = st.date_input("ETA (Fecha estimada de llegada)")
-            est = st.selectbox("Estatus", ["A tiempo", "⚠️ Discrepancia", "Retrasado"])
-            
-        submitted_shp = st.form_submit_button("Guardar Embarque")
-        if submitted_shp and dest:
-            nueva_shp = {"Embarque": shp_id, "Destino": dest, "Producto": prod, "Progreso": prog, "ETA": str(eta_date), "Estatus": est}
-            st.session_state.shipments = pd.concat([st.session_state.shipments, pd.DataFrame([nueva_shp])], ignore_index=True)
-            st.success(f"Embarque {shp_id} añadido correctamente.")
-            st.rerun()
+  # 4. Tránsito normal
+  return "🟡 OK: En Tránsito Normal"
 
-elif menu == "Reporte Diario de Acción":
-    st.markdown("# <span class='highlight'>The Daily Action Report</span>", unsafe_allow_html=True)
-    st.write("Empieza el día con lo que necesita atención. Cada mañana, CrateCairn resume los retrasos y discrepancias para tu equipo.")
-    
-    st.info("💡 **Consejo de Operación:** Este reporte se envía automáticamente a las 08:00 AM vía correo electrónico a todos los coordinadores registrados.")
-    
-    if st.button("Simular Envío de Reporte Diario por Correo"):
-        st.success("¡Reporte diario generado y enviado con éxito a los correos del equipo de operaciones!")
-        
-    st.markdown("### Vista Previa del Reporte de Hoy")
-    st.markdown(f"""
-    **Fecha:** {datetime.now().strftime('%Y-%m-%d')}
-    - **Total Lotes en Origen:** {len(st.session_state.inventory)}
-    - **Envíos en Tránsito:** {len(st.session_state.shipments)}
-    - **Acción Requerida:** Revisar el estatus del embarque **SHP-102** (Retrasado en aduana de Los Angeles).
-    """)
 
-st.sidebar.markdown("---")
-st.sidebar.caption("CrateCairn MVP v1.0 · Hecho para agronegocios y exportadores.")
+# Base de datos simulada en memoria (Session State)
+if "embarques" not in st.session_state:
+  st.session_state.embarques = pd.DataFrame([
+      {
+          "ID": "CC-5001",
+          "Producto": "Café Veracruz (Lote A)",
+          "Transportista": "DHL",
+          "Guía / BL": "DHL-98432109",
+          "Origen": "Ramos Arizpe",
+          "Destino": "Austin, TX",
+          "ETD": datetime.date(2026, 10, 1),
+          "ETA": datetime.date(2026, 10, 8),
+          "Último Estatus Web": "In transit - Shipment departed facility",
+      },
+      {
+          "ID": "CC-5002",
+          "Producto": "Aguacate Hass (Tarimas)",
+          "Transportista": "FedEx",
+          "Guía / BL": "FDX-11223344",
+          "Origen": "Apodaca",
+          "Destino": "Laredo, TX",
+          "ETD": datetime.date(2026, 10, 5),
+          "ETA": datetime.date(2026, 10, 12),
+          "Último Estatus Web": "Picked up by carrier",
+      },
+      {
+          "ID": "CC-5003",
+          "Producto": "Componentes Industriales",
+          "Transportista": "Maersk",
+          "Guía / BL": "MSK-77889900",
+          "Origen": "Santa Catarina",
+          "Destino": "Houston, TX",
+          "ETD": datetime.date(2026, 9, 28),
+          "ETA": datetime.date(2026, 10, 6),
+          "Último Estatus Web": "Customs clearance delay / Held",
+      },
+  ])
+
+# Interfaz Principal
+st.title("📦 CrateCairn")
+st.subheader("Vista Operativa y Rastreo Inteligente de Exportaciones")
+st.markdown("---")
+
+# Barra lateral para registrar nuevos envíos con guía de rastreo
+with st.sidebar:
+  st.header("➕ Registrar Nuevo Envío")
+  with st.form("nuevo_envio"):
+    prod = st.text_input("Producto / Lote")
+    transportista = st.selectbox(
+        "Paquetería / Naviera", ["DHL", "FedEx", "Maersk", "UPS", "Otro"]
+    )
+    guia = st.text_input("Número de Guía o BL")
+    origen = st.text_input("Origen", value="Ramos Arizpe")
+    destino = st.text_input("Destino")
+    etd = st.date_input("Fecha de Salida (ETD)")
+    eta = st.date_input("Fecha Estimada de Llegada (ETA)")
+    estatus_web = st.text_input(
+        "Estatus de la Paquetería (Simula Scraping/API)", value="In transit"
+    )
+
+    submit = st.form_submit_button("Añadir y Categorizar")
+    if submit and prod and guia:
+      nuevo_registro = {
+          "ID": f"CC-500{len(st.session_state.embarques)+1}",
+          "Producto": prod,
+          "Transportista": transportista,
+          "Guía / BL": guia,
+          "Origen": origen,
+          "Destino": destino,
+          "ETD": etd,
+          "ETA": eta,
+          "Último Estatus Web": estatus_web,
+      }
+      st.session_state.embarques = pd.concat(
+          [st.session_state.embarques, pd.DataFrame([nuevo_registro])],
+          ignore_index=True,
+      )
+      st.success("¡Envío agregado correctamente!")
+
+# Procesar y categorizar automáticamente todos los embarques
+df = st.session_state.embarques.copy()
+df["Estatus Operativo CrateCairn"] = df.apply(
+    lambda row: categorizar_estatus_envio(row["Último Estatus Web"], row["ETA"]),
+    axis=1,
+)
+
+# Métricas Generales
+total_envios = len(df)
+alertas = len(df[df["Estatus Operativo CrateCairn"].str.contains("ALERTA")])
+completados = len(
+    df[df["Estatus Operativo CrateCairn"].str.contains("ENTREGADO")]
+)
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Embarques en Monitoreo", total_envios)
+col2.metric("Alertas / Retrasos Activos", alertas, delta=-alertas)
+col3.metric("Entregas Exitosas", completados)
+
+st.markdown("---")
+
+# SECCIÓN: Reporte Diario de Acción (El valor central del producto)
+if alertas > 0:
+  st.error(
+      "⚠️ **REPORTE DIARIO DE ACCIÓN:** Se detectaron retrasos o retenciones en"
+      " aduana que requieren la atención inmediata de tu equipo:"
+  )
+  df_alertas = df[df["Estatus Operativo CrateCairn"].str.contains("ALERTA")]
+  st.dataframe(
+      df_alertas[
+          [
+              "ID",
+              "Producto",
+              "Transportista",
+              "Guía / BL",
+              "ETA",
+              "Estatus Operativo CrateCairn",
+          ]
+      ],
+      use_container_width=True,
+  )
+else:
+  st.success(
+      "✅ **REPORTE DIARIO DE ACCIÓN:** ¡Excelente inicio de día! No hay"
+      " retrasos críticos registrados en las rutas."
+  )
+
+st.markdown("### 📋 Vista General y Detalle de Toda la Operación")
+st.dataframe(df, use_container_width=True)
