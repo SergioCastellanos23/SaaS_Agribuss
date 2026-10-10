@@ -19,7 +19,7 @@ st.markdown(
 )
 
 
-# Motor de categorización automática (Simula la lectura de APIs/Scraping de paqueterías)
+# Motor de categorización automática
 def categorizar_estatus_envio(texto_rastreo, fecha_estimada):
   hoy = datetime.date.today()
   texto = texto_rastreo.lower()
@@ -34,9 +34,10 @@ def categorizar_estatus_envio(texto_rastreo, fecha_estimada):
           "retención",
           "excepción",
           "exception",
+          "detenido",
       ]
   ):
-    return "🔴 ALERTA: Retenido / Aduana"
+    return "🔴 ALERTA: Retenido / Incidencia en Aduana"
 
   # 2. Detección de entrega completada
   if any(palabra in texto for palabra in ["delivered", "entregado", "signed"]):
@@ -51,41 +52,76 @@ def categorizar_estatus_envio(texto_rastreo, fecha_estimada):
   return "🟡 OK: En Tránsito Normal"
 
 
-# Base de datos simulada en memoria (Session State)
+# Base de datos simulada con un catálogo diverso de exportación
 if "embarques" not in st.session_state:
   st.session_state.embarques = pd.DataFrame([
       {
           "ID": "CC-5001",
-          "Producto": "Café Veracruz (Lote A)",
-          "Transportista": "DHL",
-          "Guía / BL": "DHL-98432109",
-          "Origen": "Ramos Arizpe",
-          "Destino": "Austin, TX",
-          "ETD": datetime.date(2026, 10, 1),
+          "Producto": "Aguacate Hass (20 Tarimas - Refrigerado)",
+          "Transportista": "FedEx Freight",
+          "Guía / BL": "FDX-984321092",
+          "Origen": "Uruapan, Michoacán",
+          "Destino": "McAllen, TX",
+          "ETD": datetime.date(2026, 10, 4),
           "ETA": datetime.date(2026, 10, 8),
-          "Último Estatus Web": "In transit - Shipment departed facility",
+          "Último Estatus Web": (
+              "Customs clearance delay - Agriculture inspection"
+          ),
       },
       {
           "ID": "CC-5002",
-          "Producto": "Aguacate Hass (Tarimas)",
-          "Transportista": "FedEx",
-          "Guía / BL": "FDX-11223344",
-          "Origen": "Apodaca",
-          "Destino": "Laredo, TX",
-          "ETD": datetime.date(2026, 10, 5),
+          "Producto": "Café Pluma Hidalgo (150 Sacos)",
+          "Transportista": "DHL Express",
+          "Guía / BL": "DHL-442299103",
+          "Origen": "Oaxaca, Oax.",
+          "Destino": "Hamburg, Alemania",
+          "ETD": datetime.date(2026, 10, 1),
           "ETA": datetime.date(2026, 10, 12),
-          "Último Estatus Web": "Picked up by carrier",
+          "Último Estatus Web": "In transit - Arrived at DHL Sort Facility",
       },
       {
           "ID": "CC-5003",
-          "Producto": "Componentes Industriales",
-          "Transportista": "Maersk",
-          "Guía / BL": "MSK-77889900",
-          "Origen": "Santa Catarina",
-          "Destino": "Houston, TX",
+          "Producto": "Tequila Reposado (1,200 Cajas de Cristal)",
+          "Transportista": "UPS Supply Chain",
+          "Guía / BL": "UPS-1Z99999901",
+          "Origen": "Tequila, Jalisco",
+          "Destino": "Los Angeles, CA",
           "ETD": datetime.date(2026, 9, 28),
-          "ETA": datetime.date(2026, 10, 6),
-          "Último Estatus Web": "Customs clearance delay / Held",
+          "ETA": datetime.date(2026, 10, 5),
+          "Último Estatus Web": "In transit - Delayed due to border congestion",
+      },
+      {
+          "ID": "CC-5004",
+          "Producto": "Arnés Eléctrico Automotriz (Lote A4)",
+          "Transportista": "Maersk Line",
+          "Guía / BL": "MSK-708912341",
+          "Origen": "Ramos Arizpe, Coah.",
+          "Destino": "Detroit, MI",
+          "ETD": datetime.date(2026, 10, 2),
+          "ETA": datetime.date(2026, 10, 9),
+          "Último Estatus Web": "Delivered - Received by Dock 3",
+      },
+      {
+          "ID": "CC-5005",
+          "Producto": "Mango Tomy Atkins (Contenedor Atmosférico)",
+          "Transportista": "KCSM / Ferromex",
+          "Guía / BL": "FXE-330012998",
+          "Origen": "Escuinapa, Sinaloa",
+          "Destino": "Chicago, IL",
+          "ETD": datetime.date(2026, 10, 6),
+          "ETA": datetime.date(2026, 10, 14),
+          "Último Estatus Web": "In transit - Railcar passing San Luis Potosí",
+      },
+      {
+          "ID": "CC-5006",
+          "Producto": "Núcleos e Intercambiadores de Calor (Cores)",
+          "Transportista": "DHL Freight",
+          "Guía / BL": "DHL-881203948",
+          "Origen": "Apodaca, N.L.",
+          "Destino": "Laredo, TX",
+          "ETD": datetime.date(2026, 10, 7),
+          "ETA": datetime.date(2026, 10, 11),
+          "Último Estatus Web": "Out for delivery to border broker",
       },
   ])
 
@@ -94,21 +130,25 @@ st.title("📦 CrateCairn")
 st.subheader("Vista Operativa y Rastreo Inteligente de Exportaciones")
 st.markdown("---")
 
-# Barra lateral para registrar nuevos envíos con guía de rastreo
+# Barra lateral para registrar nuevos envíos
 with st.sidebar:
   st.header("➕ Registrar Nuevo Envío")
   with st.form("nuevo_envio"):
-    prod = st.text_input("Producto / Lote")
+    prod = st.text_input("Producto / Lote / Carga")
     transportista = st.selectbox(
-        "Paquetería / Naviera", ["DHL", "FedEx", "Maersk", "UPS", "Otro"]
+        "Paquetería / Naviera",
+        ["DHL", "FedEx", "Maersk", "UPS", "Ferromex / KCSM", "Otro"],
     )
     guia = st.text_input("Número de Guía o BL")
-    origen = st.text_input("Origen", value="Ramos Arizpe")
-    destino = st.text_input("Destino")
-    etd = st.date_input("Fecha de Salida (ETD)")
-    eta = st.date_input("Fecha Estimada de Llegada (ETA)")
+    origen = st.text_input("Origen", value="Apodaca, N.L.")
+    destino = st.text_input("Destino", value="Laredo, TX")
+    etd = st.date_input("Fecha de Salida (ETD)", datetime.date.today())
+    eta = st.date_input(
+        "Fecha Estimada de Llegada (ETA)",
+        datetime.date.today() + datetime.timedelta(days=4),
+    )
     estatus_web = st.text_input(
-        "Estatus de la Paquetería (Simula Scraping/API)", value="In transit"
+        "Estatus de la Paquetería (Simula API)", value="In transit"
     )
 
     submit = st.form_submit_button("Añadir y Categorizar")
@@ -151,11 +191,11 @@ col3.metric("Entregas Exitosas", completados)
 
 st.markdown("---")
 
-# SECCIÓN: Reporte Diario de Acción (El valor central del producto)
+# SECCIÓN: Reporte Diario de Acción
 if alertas > 0:
   st.error(
-      "⚠️ **REPORTE DIARIO DE ACCIÓN:** Se detectaron retrasos o retenciones en"
-      " aduana que requieren la atención inmediata de tu equipo:"
+      f"⚠️ **REPORTE DIARIO DE ACCIÓN:** Se detectaron **{alertas} embarque(s)**"
+      " con retrasos o inspecciones de aduana que requieren atención:"
   )
   df_alertas = df[df["Estatus Operativo CrateCairn"].str.contains("ALERTA")]
   st.dataframe(
@@ -165,6 +205,8 @@ if alertas > 0:
               "Producto",
               "Transportista",
               "Guía / BL",
+              "Origen",
+              "Destino",
               "ETA",
               "Estatus Operativo CrateCairn",
           ]
@@ -177,5 +219,5 @@ else:
       " retrasos críticos registrados en las rutas."
   )
 
-st.markdown("### 📋 Vista General y Detalle de Toda la Operación")
+st.markdown("### 📋 Vista General de la Operación de Exportación")
 st.dataframe(df, use_container_width=True)
